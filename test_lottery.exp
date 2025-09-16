@@ -11,6 +11,7 @@ set sched [expr {[info exists env(SCHED)] ? $env(SCHED) : "lottery"}]
 set tol   [expr {[info exists env(TOL)]   ? double($env(TOL)) : 0.10}]
 
 puts "INFO: starting xv6 (CPUS=$cpus, SCHED=$sched)"
+spawn make clean
 spawn make qemu CPUS=$cpus SCHED=$sched
 
 expect {

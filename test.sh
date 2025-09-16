@@ -38,9 +38,7 @@ if ! command -v expect &> /dev/null; then
 fi
 
 # Build xv6
-echo "[INFO] Cleaning and building xv6..."
-make clean
-make
+# echo "[INFO] Cleaning and building xv6..."
 
 # Run test
 echo "[INFO] Running test script: ${TEST_SCRIPT}"
