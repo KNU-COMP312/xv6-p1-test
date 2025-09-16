@@ -8,7 +8,7 @@ catch { exec pkill -f qemu-system-riscv64 } result
 set timeout 120
 set cpus  [expr {[info exists env(CPUS)]  ? $env(CPUS)  : 1}]
 set sched [expr {[info exists env(SCHED)] ? $env(SCHED) : "lottery"}]
-set tol   [expr {[info exists env(TOL)]   ? double($env(TOL)) : 0.20}]
+set tol   [expr {[info exists env(TOL)]   ? double($env(TOL)) : 0.10}]
 
 puts "INFO: starting xv6 (CPUS=$cpus, SCHED=$sched)"
 spawn make qemu CPUS=$cpus SCHED=$sched
@@ -28,16 +28,57 @@ send -- "lotterytest\r"
 
 # collect results. format: `T=10 loops=1234`
 set reports {}
-for {set i 0} {$i < 3} {incr i} {
+set need 3
+
+proc quit_qemu {} {
+  # Ctrl-a x
+  send -- "\001x"
+  expect eof
+}
+
+while {$need > 0} {
   expect {
     -re {T=(\d+)\s+loops=(\d+)\r\n} {
       set t $expect_out(1,string)
       set l $expect_out(2,string)
       lappend reports [list $t $l]
+      incr need -1
     }
+
+    -re {lotterytest: unknown sys call [0-9]+\r\n} {
+      puts "ERROR: unknown syscall"
+      quit_qemu
+      exit 3
+    }
+    -re {settickets failed\r\n} {
+      puts "ERROR: settickets failed"
+      quit_qemu
+      exit 4
+    }
+    -re {ready read failed\r\n} {
+      puts "ERROR: parent failed to read 'ready' (child crashed or pipe issue)"
+      quit_qemu
+      exit 5
+    }
+    -re {exec .* failed\r\n} {
+      puts "ERROR: exec failed (lotterytest not in UPROGS or fs.img missing the binary)"
+      quit_qemu
+      exit 7
+    }
+    -re {panic: .*\r\n} {
+      puts "ERROR: kernel panic"
+      quit_qemu
+      exit 6
+    }
+
     timeout {
-      puts "ERROR: did not see all 3 reports (got [llength $reports])"
-      send -- "\001x"
+      puts "ERROR: did not see all reports in time (got [llength $reports])"
+      quit_qemu
+      exit 2
+    }
+
+    eof {
+      puts "ERROR: QEMU exited early (got [llength $reports] reports)"
       exit 2
     }
   }
