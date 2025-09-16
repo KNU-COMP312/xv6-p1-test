@@ -57,7 +57,7 @@ while { !($have_child && $have_parent) } {
             exp_continue
         }
         timeout {
-            puts "❌ Timeout waiting for ppidtest output"
+            puts "ERROR: Timeout waiting for ppidtest output"
             send -- "\001x"
             expect eof
             exit 1

@@ -2,6 +2,9 @@
 # Env overrides (optional):
 #   CPUS=1 SCHED=lottery TOL=0.35 ./tests/test_lottery.exp
 
+# Kill any running QEMU processes (ignore errors)
+catch { exec pkill -f qemu-system-riscv64 } result
+
 set timeout 120
 set cpus  [expr {[info exists env(CPUS)]  ? $env(CPUS)  : 1}]
 set sched [expr {[info exists env(SCHED)] ? $env(SCHED) : "lottery"}]
