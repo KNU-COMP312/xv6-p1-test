@@ -1,0 +1,84 @@
+#!/usr/bin/expect -f
+# Env overrides (optional):
+#   CPUS=1 SCHED=lottery TOL=0.35 ./tests/test_lottery.exp
+
+set timeout 120
+set cpus  [expr {[info exists env(CPUS)]  ? $env(CPUS)  : 1}]
+set sched [expr {[info exists env(SCHED)] ? $env(SCHED) : "lottery"}]
+set tol   [expr {[info exists env(TOL)]   ? double($env(TOL)) : 0.20}]
+
+puts "INFO: starting xv6 (CPUS=$cpus, SCHED=$sched)"
+spawn make qemu CPUS=$cpus SCHED=$sched
+
+expect {
+  -re {xv6 kernel is booting} { }
+  timeout { puts "ERROR: boot timeout (no 'xv6 kernel is booting')"; exit 124 }
+}
+
+expect {
+  -re {init: starting sh} { }
+  timeout { puts "ERROR: boot timeout (no 'init: starting sh')"; exit 124 }
+}
+
+expect -re {\$ $}
+send -- "lotterytest\r"
+
+# collect results. format: `T=10 loops=1234`
+set reports {}
+for {set i 0} {$i < 3} {incr i} {
+  expect {
+    -re {T=(\d+)\s+loops=(\d+)\r\n} {
+      set t $expect_out(1,string)
+      set l $expect_out(2,string)
+      lappend reports [list $t $l]
+    }
+    timeout {
+      puts "ERROR: did not see all 3 reports (got [llength $reports])"
+      send -- "\001x"
+      exit 2
+    }
+  }
+}
+
+proc compare {a b} {
+  set ta [lindex $a 0]
+  set tb [lindex $b 0]
+  if {$ta < $tb} {return -1}
+  if {$ta > $tb} {return 1}
+  return 0
+}
+set reports [lsort -command compare $reports]
+
+set ratios {}
+foreach rep $reports {
+  set t [lindex $rep 0]
+  set l [lindex $rep 1]
+  lappend ratios [expr {double($l) / double($t)}]
+}
+
+set sum 0.0
+foreach r $ratios { set sum [expr {$sum + $r}] }
+set mean [expr {$sum / [llength $ratios]}]
+
+set maxdev 0.0
+foreach r $ratios {
+  set dev [expr {abs($r - $mean) / $mean}]
+  if {$dev > $maxdev} { set maxdev $dev }
+}
+
+puts "RESULT: reports=$reports"
+puts [format "RESULT: mean_loops_per_ticket=%.3f  max_rel_dev=%.3f  tol=%.3f" $mean $maxdev $tol]
+
+if {$maxdev <= $tol} {
+  puts "PASS: proportional within tolerance"
+  puts "SUCCESS: All tests passed!"
+  set code 0
+} else {
+  puts "FAIL: not proportional"
+  set code 1
+}
+
+send -- "\001x"
+expect eof
+exit $code
+

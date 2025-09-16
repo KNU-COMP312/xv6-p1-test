@@ -16,7 +16,7 @@ spawn make qemu
 expect {
     -re {init: starting sh} {}
     timeout {
-        puts "Failed to start xv6 shell"
+        puts "ERROR: Failed to start xv6 shell"
         exit 1
     }
 }
@@ -57,7 +57,7 @@ while { !($have_child && $have_parent) } {
             exp_continue
         }
         timeout {
-            puts "Timeout waiting for ppidtest output"
+            puts "❌ Timeout waiting for ppidtest output"
             send -- "\001x"
             expect eof
             exit 1
@@ -68,13 +68,13 @@ while { !($have_child && $have_parent) } {
 # Evaluate result
 set ok 0
 if {$unknown} {
-    puts "FAILED: saw 'unknown sys call' while running ppidtest"
+    puts "FAIL: saw 'unknown sys call' while running ppidtest"
     set ok 0
 } elseif { $child_ppid eq $parent_pid && $child_st eq "0" } {
     puts "PASS: child.getppid() == parent.pid == $parent_pid (status=$child_st)"
     set ok 1
 } else {
-    puts "FAILED: child.getppid()=$child_ppid, parent.pid=$parent_pid, status=$child_st"
+    puts "FAIL: child.getppid()=$child_ppid, parent.pid=$parent_pid, status=$child_st"
     set ok 0
 }
 
