@@ -111,6 +111,9 @@ foreach r $ratios {
   if {$dev > $maxdev} { set maxdev $dev }
 }
 
+send -- "\001x"
+expect eof
+
 puts "RESULT: reports=$reports"
 puts [format "RESULT: mean_loops_per_ticket=%.3f  max_rel_dev=%.3f  tol=%.3f" $mean $maxdev $tol]
 
@@ -123,7 +126,4 @@ if {$maxdev <= $tol} {
   set code 1
 }
 
-send -- "\001x"
-expect eof
 exit $code
-
