@@ -1,0 +1,91 @@
+#!/usr/bin/env expect
+#
+# This script boots xv6, runs `ppidtest`, and verifies:
+#   - child's getppid() matches parent's pid
+#   - child exited with status 0
+# If "unknown sys call" appears or values mismatch, it fails.
+
+# Kill any running QEMU processes (ignore errors)
+catch { exec pkill -f qemu-system-riscv64 } result
+
+# Start xv6
+set timeout 30
+spawn make qemu
+
+# Wait for xv6 to boot into the shell
+expect {
+    -re {init: starting sh} {}
+    timeout {
+        puts "Failed to start xv6 shell"
+        exit 1
+    }
+}
+
+# Wait for shell prompt
+set timeout 10
+expect -re {\$\s}
+
+# Run ppidtest
+send -- "ppidtest\r"
+
+# Parse output
+set unknown 0
+set have_child 0
+set have_parent 0
+set child_ppid ""
+set parent_pid ""
+set child_st ""
+
+set timeout 10
+while { !($have_child && $have_parent) } {
+    expect {
+        -re {unknown sys call} {
+            set unknown 1
+            exp_continue
+        }
+        -re {child: getppid\(\)=(-?\d+)\r?\n} {
+            set child_ppid $expect_out(1,string)
+            set have_child 1
+            exp_continue
+        }
+        -re {parent: my pid=(-?\d+) \(child exited with (-?\d+)\)\r?\n} {
+            set parent_pid $expect_out(1,string)
+            set child_st   $expect_out(2,string)
+            set have_parent 1
+        }
+        -re {\$\s} {
+            exp_continue
+        }
+        timeout {
+            puts "Timeout waiting for ppidtest output"
+            send -- "\001x"
+            expect eof
+            exit 1
+        }
+    }
+}
+
+# Evaluate result
+set ok 0
+if {$unknown} {
+    puts "FAILED: saw 'unknown sys call' while running ppidtest"
+    set ok 0
+} elseif { $child_ppid eq $parent_pid && $child_st eq "0" } {
+    puts "PASS: child.getppid() == parent.pid == $parent_pid (status=$child_st)"
+    set ok 1
+} else {
+    puts "FAILED: child.getppid()=$child_ppid, parent.pid=$parent_pid, status=$child_st"
+    set ok 0
+}
+
+# Shut down QEMU
+send -- "\001x"
+expect eof
+
+if {$ok} {
+    puts "SUCCESS: All tests passed!"
+    exit 0
+} else {
+    exit 1
+}
+
